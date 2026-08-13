@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { collectMagnets, openFirstFiveDetailLinks } from './chromeApi';
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : '';
+}
+
 export default function App() {
   const [isBusy, setIsBusy] = useState(false);
   const [status, setStatus] = useState('');
@@ -22,8 +26,8 @@ export default function App() {
     } catch (error) {
       console.error(error);
       setStatus(
-        error.message === 'No active tab found.'
-          ? error.message
+        getErrorMessage(error) === 'No active tab found.'
+          ? getErrorMessage(error)
           : 'Could not open detail links from this tab.',
       );
     } finally {

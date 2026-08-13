@@ -1,15 +1,25 @@
 const TARGET_PREFIX = 'https://skrbtso.top/detail';
 
-function readMagnetHrefFromPage() {
-  const magnetLink = document.querySelector('#detail-magnet-panel a#magnet');
+interface CollectMagnetsResult {
+  collectedText: string;
+  detailTabCount: number;
+  magnetCount: number;
+}
+
+function readMagnetHrefFromPage(): string {
+  const magnetLink = document.querySelector<HTMLAnchorElement>(
+    '#detail-magnet-panel a#magnet',
+  );
   return magnetLink ? magnetLink.href : '';
 }
 
-async function clickFirstFiveDetailLinksFromPage() {
+async function clickFirstFiveDetailLinksFromPage(): Promise<string[]> {
   const links = Array.from(
-    document.querySelectorAll('ul.list-unstyled a.rrt.common-link'),
+    document.querySelectorAll<HTMLAnchorElement>(
+      'ul.list-unstyled a.rrt.common-link',
+    ),
   ).slice(0, 5);
-  const wait = (milliseconds) =>
+  const wait = (milliseconds: number) =>
     new Promise((resolve) => {
       setTimeout(resolve, milliseconds);
     });
@@ -22,7 +32,7 @@ async function clickFirstFiveDetailLinksFromPage() {
   return links.map((link) => link.href).filter(Boolean);
 }
 
-export async function openFirstFiveDetailLinks() {
+export async function openFirstFiveDetailLinks(): Promise<string[]> {
   const [currentTab] = await chrome.tabs.query({
     active: true,
     currentWindow: true,
@@ -40,7 +50,7 @@ export async function openFirstFiveDetailLinks() {
   return injectionResult[0]?.result ?? [];
 }
 
-export async function collectMagnets() {
+export async function collectMagnets(): Promise<CollectMagnetsResult> {
   const allTabs = await chrome.tabs.query({});
   const detailTabs = allTabs.filter((tab) => tab.url?.startsWith(TARGET_PREFIX));
   const detailTabIds = detailTabs
