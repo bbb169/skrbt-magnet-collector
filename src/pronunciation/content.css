@@ -18,3 +18,11 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+
+.pronunciation-recorder-shell button[title='Play preview'] {
+  display: none !important;
+}
+
+.pronunciation-recording-player {
+  width: 100%;
+}

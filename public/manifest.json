@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SKRBT Magnet Collector",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "Collect magnet links from open SKRBT detail tabs.",
   "action": {
     "default_popup": "popup.html"

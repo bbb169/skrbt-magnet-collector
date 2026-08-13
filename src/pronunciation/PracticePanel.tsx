@@ -1,20 +1,16 @@
+import { AudioOutlined, CloseOutlined, SoundOutlined } from '@ant-design/icons';
 import {
-  AudioOutlined,
-  CloseOutlined,
-  RedoOutlined,
-  SoundOutlined,
-  StopOutlined,
-} from '@ant-design/icons';
-import {
+  App,
   Button,
   Card,
   Flex,
   Progress,
-  Space,
-  Spin,
   Tooltip,
   Typography,
 } from 'antd';
+import { useEffect, useRef, useState } from 'react';
+import { VoiceRecorder } from 'react-voice-recorder-kit';
+import { playReference, stopReferencePlayback } from './audio';
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -32,6 +28,58 @@ export default function PracticePanel({
   onClose,
 }: PracticePanelProps) {
   const tokens = getWordTokens(selectedText);
+  const { message } = App.useApp();
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [recorderStarted, setRecorderStarted] = useState(false);
+  const [recordingUrl, setRecordingUrl] = useState<string>();
+  const recordingPlayerRef = useRef<HTMLAudioElement>(null);
+
+  const stopPlayback = () => {
+    stopReferencePlayback();
+    setIsPlaying(false);
+  };
+
+  useEffect(() => {
+    stopPlayback();
+    setRecorderStarted(false);
+  }, [selectedText]);
+
+  useEffect(
+    () => () => {
+      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+    },
+    [recordingUrl],
+  );
+
+  const handleHear = () => {
+    try {
+      recordingPlayerRef.current?.pause();
+      const playback = playReference(selectedText);
+      setIsPlaying(true);
+      if (!playback.usedAmericanVoice) {
+        void message.warning(
+          'No en-US voice is installed. Using the available English or browser voice.',
+        );
+      }
+      void playback.finished
+        .catch((error: unknown) => {
+          void message.error(
+            error instanceof Error
+              ? error.message
+              : 'Reference playback failed.',
+          );
+        })
+        .finally(() => setIsPlaying(false));
+    } catch {
+      setIsPlaying(false);
+      void message.error('Reference playback is unavailable.');
+    }
+  };
+
+  const handleClose = () => {
+    stopPlayback();
+    onClose();
+  };
 
   return (
     <Card
@@ -42,7 +90,7 @@ export default function PracticePanel({
             aria-label="Close pronunciation practice"
             icon={<CloseOutlined />}
             type="text"
-            onClick={onClose}
+            onClick={handleClose}
           />
         </Tooltip>
       }
@@ -59,34 +107,66 @@ export default function PracticePanel({
           </div>
         </section>
 
-        <Space wrap>
-          <Tooltip title="Reference playback is added in Step 3">
-            <Button disabled icon={<SoundOutlined />}>
-              Hear
-            </Button>
-          </Tooltip>
-          <Tooltip title="Microphone recording is added in Step 4">
-            <Button disabled icon={<AudioOutlined />} type="primary">
-              Record
-            </Button>
-          </Tooltip>
-          <Button disabled icon={<StopOutlined />}>
-            Stop
+        <Tooltip title="Play an American English reference">
+          <Button
+            icon={<SoundOutlined />}
+            loading={isPlaying}
+            onClick={handleHear}
+          >
+            {isPlaying ? 'Playing' : 'Hear'}
           </Button>
-          <Button disabled icon={<RedoOutlined />}>
-            Retry
-          </Button>
-        </Space>
+        </Tooltip>
 
-        <Spin spinning={false}>
-          <Flex vertical gap="small">
-            <Text strong>Assessment</Text>
-            <Progress percent={0} status="normal" format={() => 'Not assessed'} />
-            <Paragraph type="secondary">
-              Record the sentence to receive clarity and pronunciation feedback.
-            </Paragraph>
-          </Flex>
-        </Spin>
+        {recorderStarted ? (
+          <div
+            className="pronunciation-recorder-shell"
+            onPointerDownCapture={stopPlayback}
+          >
+            <VoiceRecorder
+              key={selectedText}
+              autoStart
+              width="100%"
+              onDelete={() => setRecorderStarted(false)}
+              onStop={(recording) => {
+                setRecordingUrl(URL.createObjectURL(recording));
+                setRecorderStarted(false);
+                void message.success('Recording complete.');
+              }}
+            />
+          </div>
+        ) : (
+          <Button
+            icon={<AudioOutlined />}
+            type="primary"
+            onClick={() => {
+              stopPlayback();
+              recordingPlayerRef.current?.pause();
+              setRecorderStarted(true);
+            }}
+          >
+            Record
+          </Button>
+        )}
+
+        {recordingUrl && (
+          <audio
+            ref={recordingPlayerRef}
+            className="pronunciation-recording-player"
+            controls
+            src={recordingUrl}
+            onPlay={stopPlayback}
+          >
+            Your browser does not support audio playback.
+          </audio>
+        )}
+
+        <Flex vertical gap="small">
+          <Text strong>Assessment</Text>
+          <Progress percent={0} status="normal" format={() => 'Not assessed'} />
+          <Paragraph type="secondary">
+            Record the sentence to receive clarity and pronunciation feedback.
+          </Paragraph>
+        </Flex>
       </Flex>
     </Card>
   );

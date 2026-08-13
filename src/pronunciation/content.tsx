@@ -44,6 +44,7 @@ function createController(): PronunciationController {
               <PracticePanel
                 selectedText={selectedText}
                 onClose={() => {
+                  root.render(null);
                   host.hidden = true;
                 }}
               />
