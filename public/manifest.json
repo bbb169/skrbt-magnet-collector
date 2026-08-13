@@ -7,11 +7,18 @@
     "default_popup": "popup.html"
   },
   "permissions": [
+    "activeTab",
     "clipboardWrite",
+    "contextMenus",
     "scripting",
     "tabs"
   ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "host_permissions": [
+    "http://127.0.0.1:8765/*",
     "https://skrbtso.top/*"
   ]
 }

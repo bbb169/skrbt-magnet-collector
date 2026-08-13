@@ -6,10 +6,13 @@
   "packageManager": "pnpm@10.28.1",
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build",
+    "build": "vite build && vite build --mode content",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ant-design/cssinjs": "^2.1.2",
+    "@ant-design/icons": "^6.3.2",
+    "antd": "^6.6.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
