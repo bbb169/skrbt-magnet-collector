@@ -14,13 +14,8 @@
 }
 
 .pronunciation-word-flow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.pronunciation-recorder-shell button[title='Play preview'] {
-  display: none !important;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .pronunciation-recording-player {
