@@ -1,36 +1,24 @@
-import {
-  AudioOutlined,
-  CloseOutlined,
-  SoundOutlined,
-} from '@ant-design/icons';
+import { CloseOutlined, SoundOutlined } from '@ant-design/icons';
 import {
   App,
-  Alert,
   Button,
   Card,
   Flex,
-  Progress,
   Tooltip,
   Typography,
 } from 'antd';
-import { useRequest } from 'ahooks';
-import { useEffect, useRef, useState } from 'react';
-import { ReactMediaRecorder } from 'react-media-recorder';
+import { useEffect, useState } from 'react';
+import { playReference, stopReferencePlayback } from './audio';
 import {
-  blobToBase64,
-  playReference,
-  stopReferencePlayback,
-  toMonoPcmWav,
-} from './audio';
-import {
-  getAssessmentMarkdown,
-  mapPronunciationMarkdown,
   tokenizeSentence,
   type MappedPronunciationAssessment,
+  type MappedSentenceToken,
 } from './scoring';
-import type { PronunciationAssessmentResponse } from './types';
+import AssessmentResults from './AssessmentResults';
+import PronunciationRecorder from './PronunciationRecorder';
+import WordResult from './WordResult';
 
-const { Paragraph, Text, Title } = Typography;
+const { Text, Title } = Typography;
 
 interface PracticePanelProps {
   selectedText: string;
@@ -43,20 +31,10 @@ export default function PracticePanel({
 }: PracticePanelProps) {
   const { message } = App.useApp();
   const [isPlaying, setIsPlaying] = useState(false);
-  const [recordingUrl, setRecordingUrl] = useState<string>();
-  const [assessmentState, setAssessmentState] = useState<
-    'idle' | 'loading' | 'complete'
-  >('idle');
   const [mappedAssessment, setMappedAssessment] =
     useState<MappedPronunciationAssessment>();
-  const recordingPlayerRef = useRef<HTMLAudioElement>(null);
-  const recorderStreamRef = useRef<MediaStream | null>(null);
-  const tokens = mappedAssessment?.tokens ?? tokenizeSentence(selectedText);
-
-  const releaseRecorderStream = () => {
-    recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
-    recorderStreamRef.current = null;
-  };
+  const tokens: MappedSentenceToken[] =
+    mappedAssessment?.tokens ?? tokenizeSentence(selectedText);
 
   const stopPlayback = () => {
     stopReferencePlayback();
@@ -65,19 +43,8 @@ export default function PracticePanel({
 
   useEffect(() => {
     stopPlayback();
-    releaseRecorderStream();
-    setAssessmentState('idle');
     setMappedAssessment(undefined);
   }, [selectedText]);
-
-  useEffect(
-    () => () => {
-      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-    },
-    [recordingUrl],
-  );
-
-  useEffect(() => () => releaseRecorderStream(), []);
 
   const handleHear = () => {
     try {
@@ -105,65 +72,8 @@ export default function PracticePanel({
 
   const handleClose = () => {
     stopPlayback();
-    releaseRecorderStream();
     onClose();
   };
-
-  const assessRecording = async (recording: Blob) => {
-    setAssessmentState('loading');
-    try {
-      const wavBase64 = await blobToBase64(recording);
-      const response =
-        await chrome.runtime.sendMessage<
-          unknown,
-          PronunciationAssessmentResponse
-        >({
-          type: 'ASSESS_PRONUNCIATION',
-          wavBase64,
-          referenceText: selectedText,
-        });
-      if (!response.ok) {
-        throw new Error(response.error);
-      }
-      const markdown = getAssessmentMarkdown(response.data);
-      if (!markdown) {
-        throw new Error('The pronunciation result did not contain an assessment report.');
-      }
-      const nextAssessment = mapPronunciationMarkdown(selectedText, markdown);
-      setMappedAssessment(nextAssessment);
-      setAssessmentState('complete');
-      void message.success('Assessment complete.');
-    } catch (error) {
-      setAssessmentState('idle');
-      void message.error(
-        error instanceof Error
-          ? error.message
-          : 'Pronunciation assessment failed.',
-      );
-    }
-  };
-
-  const {
-    loading: isPreparingRecording,
-    run: handleRecordingStop,
-  } = useRequest(
-    async (recording: Blob) => {
-      const wavRecording = await toMonoPcmWav(recording);
-      setRecordingUrl(URL.createObjectURL(wavRecording));
-      return wavRecording;
-    },
-    {
-      manual: true,
-      onSuccess: (wavRecording) => {
-        void assessRecording(wavRecording);
-      },
-      onError: (error) => {
-        releaseRecorderStream();
-        setAssessmentState('idle');
-        void message.error(error.message || 'Audio conversion failed.');
-      },
-    },
-  );
 
   return (
     <Card
@@ -187,7 +97,15 @@ export default function PracticePanel({
           <div className="pronunciation-word-flow">
             {tokens.map((token) =>
               token.kind === 'word' ? (
-                <Text key={token.index}>{token.text}</Text>
+                token.assessment ? (
+                  <WordResult
+                    key={token.index}
+                    assessment={token.assessment}
+                    text={token.text}
+                  />
+                ) : (
+                  <Text key={token.index}>{token.text}</Text>
+                )
               ) : (
                 <span key={token.index}>{token.text}</span>
               ),
@@ -195,24 +113,7 @@ export default function PracticePanel({
           </div>
         </section>
 
-        {mappedAssessment?.extraWords.length ? (
-          <Alert
-            showIcon
-            type="warning"
-            message={`Extra words: ${mappedAssessment.extraWords
-              .map((entry) => entry.hyp)
-              .filter(Boolean)
-              .join(', ')}`}
-          />
-        ) : null}
-
-        {mappedAssessment?.incomplete ? (
-          <Alert
-            showIcon
-            type="warning"
-            message="Assessment was incomplete. Unscored words were left unchanged; please retry."
-          />
-        ) : null}
+        <AssessmentResults assessment={mappedAssessment} />
 
         <Tooltip title="Play an American English reference">
           <Button
@@ -224,94 +125,11 @@ export default function PracticePanel({
           </Button>
         </Tooltip>
 
-        <ReactMediaRecorder
-          audio
-          blobPropertyBag={{ type: 'audio/webm' }}
-          mediaRecorderOptions={{ mimeType: 'audio/webm' }}
-          onStop={(_blobUrl, recording) => handleRecordingStop(recording)}
-          stopStreamsOnStop={false}
-          render={({
-            error,
-            previewAudioStream,
-            startRecording,
-            status,
-            stopRecording,
-          }) => {
-            if (previewAudioStream) {
-              recorderStreamRef.current = previewAudioStream;
-            }
-            return (
-              <Flex vertical gap="small">
-                {error ? <Alert showIcon type="error" message={error} /> : null}
-                {status === 'recording' || status === 'stopping' ? (
-                  <Button
-                    danger
-                    loading={status === 'stopping'}
-                    onClick={() => {
-                      stopPlayback();
-                      stopRecording();
-                    }}
-                  >
-                    Stop &amp; Review
-                  </Button>
-                ) : (
-                  <Button
-                    disabled={isPreparingRecording}
-                    icon={<AudioOutlined />}
-                    loading={
-                      status === 'acquiring_media' || isPreparingRecording
-                    }
-                    type="primary"
-                    onClick={() => {
-                      stopPlayback();
-                      recordingPlayerRef.current?.pause();
-                      setAssessmentState('idle');
-                      setMappedAssessment(undefined);
-                      startRecording();
-                    }}
-                  >
-                    Record
-                  </Button>
-                )}
-                {isPreparingRecording && <Text>Preparing recording…</Text>}
-              </Flex>
-            );
-          }}
+        <PronunciationRecorder
+          selectedText={selectedText}
+          onAssessmentChange={setMappedAssessment}
+          onStopReferencePlayback={stopPlayback}
         />
-
-        {recordingUrl && (
-          <Flex vertical gap="small">
-            <audio
-              ref={recordingPlayerRef}
-              className="pronunciation-recording-player"
-              controls
-              preload="metadata"
-              src={recordingUrl}
-              onEnded={releaseRecorderStream}
-              onError={releaseRecorderStream}
-            >
-              Your browser does not support audio playback.
-            </audio>
-          </Flex>
-        )}
-
-        <Flex vertical gap="small">
-          <Text strong>Assessment</Text>
-          <Progress
-            percent={assessmentState === 'complete' ? 100 : 0}
-            status="normal"
-            format={() =>
-              assessmentState === 'loading'
-                ? 'Assessing'
-                : assessmentState === 'complete'
-                  ? 'Complete'
-                  : 'Not assessed'
-            }
-          />
-          <Paragraph type="secondary">
-            Record the sentence to receive clarity and pronunciation feedback.
-          </Paragraph>
-        </Flex>
       </Flex>
     </Card>
   );

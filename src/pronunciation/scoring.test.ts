@@ -1,13 +1,42 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getAssessmentMarkdown,
+  getWordDisplayStatus,
   mapPronunciationMarkdown,
   tokenizeSentence,
 } from './scoring';
+
+describe('getAssessmentMarkdown', () => {
+  it('uses the first valid MCP text content block', () => {
+    expect(
+      getAssessmentMarkdown({
+        provider: 'mcp-server-pronunciation',
+        result: {
+          content: [
+            { type: 'image', data: 'ignored' },
+            { type: 'text', text: 'assessment markdown' },
+          ],
+          isError: false,
+        },
+      }),
+    ).toBe('assessment markdown');
+  });
+
+  it('rejects malformed assessment responses', () => {
+    expect(getAssessmentMarkdown({ result: { content: 'invalid' } })).toBeUndefined();
+    expect(
+      getAssessmentMarkdown({ result: { content: [{ type: 'text' }] } }),
+    ).toBeUndefined();
+  });
+});
 
 const REPORT = `## Pronunciation Assessment
 
 **You said:** The whether is really beautiful extra
 **Target:** The weather is really beautiful.
+
+**Clarity:** 64% | **Speed:** 118 WPM (normal)
+*Note: WPM computed over 6.4s of speech.*
 
 ### Alignment
 | Reference | You said |  | Conf |
@@ -22,6 +51,11 @@ const REPORT = `## Pronunciation Assessment
 
 ### Phoneme issues
 - **weather** — expected /ˈwɛðər/, produced /ˈwɛsər/ — weak: **/ð/** (75% phoneme match)
+
+### Prosody
+- Sentence ended with rising intonation. Declaratives should fall.
+- Misplaced word stress: beautiful (syl 1 instead of 2)
+- Hesitation mid-clause: 1.24s between 'is' and 'really'
 `;
 
 describe('tokenizeSentence', () => {
@@ -62,7 +96,36 @@ describe('mapPronunciationMarkdown', () => {
       confidenceText: '75%',
     });
     expect(mapped.extraWords[0]).toMatchObject({ hyp: 'extra', op: 'ins' });
+    expect(mapped.summary).toEqual({
+      clarityText: '64%',
+      clarityPercent: 64,
+      speakingRateText: '118 WPM (normal)',
+      scoreNotes: ['Note: WPM computed over 6.4s of speech.'],
+      prosodyFeedback: [
+        'Sentence ended with rising intonation. Declaratives should fall.',
+        'Misplaced word stress: beautiful (syl 1 instead of 2)',
+        "Hesitation mid-clause: 1.24s between 'is' and 'really'",
+      ],
+    });
     expect(mapped.incomplete).toBe(false);
+  });
+
+  it('maps only engine result categories to display statuses', () => {
+    const mapped = mapPronunciationMarkdown(
+      'The weather is really beautiful.',
+      REPORT,
+    );
+    const assessments = mapped.tokens.flatMap((token) =>
+      token.kind === 'word' && token.assessment ? [token.assessment] : [],
+    );
+
+    expect(assessments.map(getWordDisplayStatus)).toEqual([
+      'correct',
+      'incorrect',
+      'uncertain',
+      'incorrect',
+      'correct',
+    ]);
   });
 
   it('aligns repeated words in order', () => {

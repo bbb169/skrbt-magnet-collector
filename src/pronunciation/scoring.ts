@@ -3,6 +3,7 @@ import { gfmTableFromMarkdown } from 'mdast-util-gfm-table';
 import { toString } from 'mdast-util-to-string';
 import { gfmTable } from 'micromark-extension-gfm-table';
 import type { Root, RootContent } from 'mdast';
+import { z } from 'zod';
 
 export interface SentenceToken {
   index: number;
@@ -51,10 +52,49 @@ export interface MappedPronunciationAssessment {
   tokens: MappedSentenceToken[];
   extraWords: EngineAlignmentEntry[];
   unmatchedResults: EngineAlignmentEntry[];
+  summary: EngineAssessmentSummary;
   incomplete: boolean;
   retryRecommended: boolean;
   rawMarkdown: string;
 }
+
+export interface EngineAssessmentSummary {
+  clarityText?: string;
+  clarityPercent?: number;
+  speakingRateText?: string;
+  scoreNotes: string[];
+  prosodyFeedback: string[];
+}
+
+export type WordDisplayStatus =
+  | 'correct'
+  | 'needs-work'
+  | 'incorrect'
+  | 'uncertain';
+
+const textContentBlockSchema = z.object({
+  type: z.literal('text'),
+  text: z.string(),
+});
+
+const assessmentMarkdownSchema = z
+  .object({
+    result: z.object({
+      content: z.array(z.unknown()),
+    }),
+  })
+  .transform(({ result }, context) => {
+    for (const contentBlock of result.content) {
+      const parsedBlock = textContentBlockSchema.safeParse(contentBlock);
+      if (parsedBlock.success) return parsedBlock.data.text;
+    }
+
+    context.addIssue({
+      code: 'custom',
+      message: 'Assessment result has no text content block.',
+    });
+    return z.NEVER;
+  });
 
 const WORD_PATTERN = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
 
@@ -177,15 +217,45 @@ function parsePhonemeIssues(root: Root): EnginePhonemeIssue[] {
   });
 }
 
+function paragraphLines(root: Root) {
+  return root.children.flatMap((node) =>
+    node.type === 'paragraph'
+      ? toString(node)
+          .split('\n')
+          .map((line) => line.trim())
+      : [],
+  );
+}
+
 function parseSpokenText(root: Root) {
-  for (const node of root.children) {
-    if (node.type !== 'paragraph') continue;
-    const text = toString(node).trim();
-    if (text.startsWith('You said:')) {
-      return text.slice('You said:'.length).split('\n', 1)[0].trim();
-    }
-  }
-  return undefined;
+  return paragraphLines(root)
+    .find((line) => line.startsWith('You said:'))
+    ?.slice('You said:'.length)
+    .trim();
+}
+
+function parseAssessmentSummary(root: Root): EngineAssessmentSummary {
+  const lines = paragraphLines(root);
+  const summary = lines
+    .find((line) => line.startsWith('Clarity:'))
+    ?.match(/^Clarity:\s*(.+?)\s*\|\s*Speed:\s*(.+)$/u);
+  const clarityText = summary?.[1].trim();
+  const speakingRateText = summary?.[2].trim();
+  const clarityPercent = clarityText?.match(/^(\d+(?:\.\d+)?)%$/u)?.[1];
+
+  const prosodyFeedback = sectionNodes(root, 'Prosody').flatMap((node) =>
+    node.type === 'list'
+      ? node.children.map((item) => toString(item).trim()).filter(Boolean)
+      : [],
+  );
+
+  return {
+    clarityText,
+    clarityPercent: clarityPercent ? Number(clarityPercent) : undefined,
+    speakingRateText,
+    scoreNotes: lines.filter((line) => line.startsWith('Note:')),
+    prosodyFeedback,
+  };
 }
 
 function wordTokens(text: string) {
@@ -304,30 +374,22 @@ export function mapPronunciationMarkdown(
     tokens,
     extraWords,
     unmatchedResults,
+    summary: parseAssessmentSummary(root),
     incomplete,
     retryRecommended,
     rawMarkdown: markdown,
   };
 }
 
-export function getAssessmentMarkdown(data: unknown) {
-  if (!data || typeof data !== 'object' || !('result' in data)) return undefined;
-  const result = data.result;
-  if (!result || typeof result !== 'object' || !('content' in result)) return undefined;
-  const content = result.content;
-  if (!Array.isArray(content)) return undefined;
+export function getWordDisplayStatus(
+  assessment: MappedWordAssessment,
+): WordDisplayStatus {
+  if (assessment.kind === 'uncertain') return 'uncertain';
+  if (assessment.kind === 'normal') return 'correct';
+  return 'incorrect';
+}
 
-  for (const block of content) {
-    if (
-      block &&
-      typeof block === 'object' &&
-      'type' in block &&
-      block.type === 'text' &&
-      'text' in block &&
-      typeof block.text === 'string'
-    ) {
-      return block.text;
-    }
-  }
-  return undefined;
+export function getAssessmentMarkdown(data: unknown) {
+  const parsed = assessmentMarkdownSchema.safeParse(data);
+  return parsed.success ? parsed.data : undefined;
 }

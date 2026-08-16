@@ -18,6 +18,10 @@
   white-space: pre-wrap;
 }
 
+.pronunciation-word-result {
+  margin-inline-end: 0;
+}
+
 .pronunciation-recording-player {
   width: 100%;
 }

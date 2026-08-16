@@ -32,5 +32,6 @@ Without that setting, the service accepts valid Chrome extension origins and non
 
 The service pins `mcp-server-pronunciation[phoneme]==0.3.0`; the optional phoneme extra enables its wav2vec2 alignment path. The engine, authored by JuhongPark, is distributed under the MIT License. Its copyright and license are available in the installed package and at <https://github.com/JuhongPark/mcp-server-pronunciation/blob/v0.3.0/LICENSE>.
 
-Pronunciation results are coaching estimates, not standardized or high-stakes assessments. Audio processing is local. Do not enable `MCP_PRONUNCIATION_AUDIO_RETENTION=keep`; the adapter and managed MCP session are configured to clean up temporary recordings.
+The persistent stdio connection is managed by `fastmcp==3.4.4`, distributed under the Apache-2.0 License.
 
+Pronunciation results are coaching estimates, not standardized or high-stakes assessments. Audio processing is local. Do not enable `MCP_PRONUNCIATION_AUDIO_RETENTION=keep`; the adapter and managed MCP session are configured to clean up temporary recordings.
