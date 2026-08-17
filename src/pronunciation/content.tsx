@@ -4,13 +4,13 @@ import { createRoot, type Root } from 'react-dom/client';
 import PracticePanel from './PracticePanel';
 import contentStyles from './content.css?inline';
 import { pronunciationTheme } from './theme';
-import { isPracticeSelectionMessage } from './types';
+import { isOpenPracticeMessage } from './types';
 
 const CONTENT_ROOT_ID = 'skrbt-pronunciation-root';
 const CONTROLLER_KEY = '__skrbtPronunciationController__';
 
 interface PronunciationController {
-  show: (selectedText: string) => void;
+  show: (selectedText?: string) => void;
 }
 
 type PronunciationGlobal = typeof globalThis & {
@@ -62,8 +62,10 @@ if (!pronunciationGlobal[CONTROLLER_KEY]) {
   pronunciationGlobal[CONTROLLER_KEY] = createController();
 
   chrome.runtime.onMessage.addListener((message: unknown) => {
-    if (isPracticeSelectionMessage(message)) {
-      pronunciationGlobal[CONTROLLER_KEY]?.show(message.text);
+    if (isOpenPracticeMessage(message)) {
+      pronunciationGlobal[CONTROLLER_KEY]?.show(
+        message.type === 'PRACTICE_SELECTION' ? message.text : undefined,
+      );
     }
   });
 }

@@ -21,7 +21,7 @@ import WordResult from './WordResult';
 const { Text, Title } = Typography;
 
 interface PracticePanelProps {
-  selectedText: string;
+  selectedText?: string;
   onClose: () => void;
 }
 
@@ -33,8 +33,9 @@ export default function PracticePanel({
   const [isPlaying, setIsPlaying] = useState(false);
   const [mappedAssessment, setMappedAssessment] =
     useState<MappedPronunciationAssessment>();
+  const isFreeSpeech = !selectedText;
   const tokens: MappedSentenceToken[] =
-    mappedAssessment?.tokens ?? tokenizeSentence(selectedText);
+    mappedAssessment?.tokens ?? tokenizeSentence(selectedText ?? '');
 
   const stopPlayback = () => {
     stopReferencePlayback();
@@ -47,6 +48,7 @@ export default function PracticePanel({
   }, [selectedText]);
 
   const handleHear = () => {
+    if (!selectedText) return;
     try {
       const playback = playReference(selectedText);
       setIsPlaying(true);
@@ -90,43 +92,50 @@ export default function PracticePanel({
       }
     >
       <Flex vertical gap="middle">
-        <section aria-labelledby="pronunciation-sentence-heading">
-          <Title id="pronunciation-sentence-heading" level={5}>
-            Selected sentence
-          </Title>
-          <div className="pronunciation-word-flow">
-            {tokens.map((token) =>
-              token.kind === 'word' ? (
-                token.assessment ? (
-                  <WordResult
-                    key={token.index}
-                    assessment={token.assessment}
-                    text={token.text}
-                  />
+        {!isFreeSpeech ? (
+          <section aria-labelledby="pronunciation-sentence-heading">
+            <Title id="pronunciation-sentence-heading" level={5}>
+              Selected sentence
+            </Title>
+            <div className="pronunciation-word-flow">
+              {tokens.map((token) =>
+                token.kind === 'word' ? (
+                  token.assessment ? (
+                    <WordResult
+                      key={token.index}
+                      assessment={token.assessment}
+                      text={token.text}
+                    />
+                  ) : (
+                    <Text key={token.index}>{token.text}</Text>
+                  )
                 ) : (
-                  <Text key={token.index}>{token.text}</Text>
-                )
-              ) : (
-                <span key={token.index}>{token.text}</span>
-              ),
-            )}
-          </div>
-        </section>
+                  <span key={token.index}>{token.text}</span>
+                ),
+              )}
+            </div>
+          </section>
+        ) : null}
 
-        <AssessmentResults assessment={mappedAssessment} />
+        <AssessmentResults
+          assessment={mappedAssessment}
+          showTranscript={isFreeSpeech}
+        />
 
-        <Tooltip title="Play an American English reference">
-          <Button
-            icon={<SoundOutlined />}
-            loading={isPlaying}
-            onClick={handleHear}
-          >
-            {isPlaying ? 'Playing' : 'Hear'}
-          </Button>
-        </Tooltip>
+        {!isFreeSpeech ? (
+          <Tooltip title="Play an American English reference">
+            <Button
+              icon={<SoundOutlined />}
+              loading={isPlaying}
+              onClick={handleHear}
+            >
+              {isPlaying ? 'Playing' : 'Hear'}
+            </Button>
+          </Tooltip>
+        ) : null}
 
         <PronunciationRecorder
-          selectedText={selectedText}
+          referenceText={selectedText}
           onAssessmentChange={setMappedAssessment}
           onStopReferencePlayback={stopPlayback}
         />

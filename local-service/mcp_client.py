@@ -80,7 +80,7 @@ class PronunciationMcpClient:
             await self._close_client()
 
     async def assess(
-        self, audio_path: Path, reference_text: str
+        self, audio_path: Path, reference_text: str | None
     ) -> CallToolResult:
         async with self._lock:
             if self._client is None:
@@ -89,12 +89,12 @@ class PronunciationMcpClient:
 
             try:
                 async with self._client:
+                    arguments = {"audio_path": str(audio_path)}
+                    if reference_text is not None:
+                        arguments["reference_text"] = reference_text
                     result = await self._client.call_tool(
                         "assess",
-                        {
-                            "audio_path": str(audio_path),
-                            "reference_text": reference_text,
-                        },
+                        arguments,
                         timeout=self._timeout_seconds,
                         raise_on_error=False,
                     )

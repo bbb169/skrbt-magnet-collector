@@ -3,25 +3,37 @@ export interface PracticeSelectionMessage {
   text: string;
 }
 
+export interface PracticeFreeSpeechMessage {
+  type: 'PRACTICE_FREE_SPEECH';
+}
+
+export type OpenPracticeMessage =
+  | PracticeSelectionMessage
+  | PracticeFreeSpeechMessage;
+
 export interface AssessPronunciationMessage {
   type: 'ASSESS_PRONUNCIATION';
   wavBase64: string;
-  referenceText: string;
+  referenceText?: string;
 }
 
 export type PronunciationAssessmentResponse =
   | { ok: true; data: unknown }
   | { ok: false; error: string };
 
-export function isPracticeSelectionMessage(
+export function isOpenPracticeMessage(
   message: unknown,
-): message is PracticeSelectionMessage {
+): message is OpenPracticeMessage {
   if (!message || typeof message !== 'object') {
     return false;
   }
 
-  const candidate = message as Partial<PracticeSelectionMessage>;
-  return candidate.type === 'PRACTICE_SELECTION' && typeof candidate.text === 'string';
+  const candidate = message as { type?: unknown; text?: unknown };
+  return (
+    candidate.type === 'PRACTICE_FREE_SPEECH' ||
+    (candidate.type === 'PRACTICE_SELECTION' &&
+      typeof candidate.text === 'string')
+  );
 }
 
 export function isAssessPronunciationMessage(
@@ -35,6 +47,7 @@ export function isAssessPronunciationMessage(
   return (
     candidate.type === 'ASSESS_PRONUNCIATION' &&
     typeof candidate.wavBase64 === 'string' &&
-    typeof candidate.referenceText === 'string'
+    (candidate.referenceText === undefined ||
+      typeof candidate.referenceText === 'string')
   );
 }

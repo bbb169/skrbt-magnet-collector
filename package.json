@@ -6,7 +6,7 @@
   "packageManager": "pnpm@10.28.1",
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build && vite build --mode content",
+    "build": "vite build && vite build --mode content && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-pronunciation-server.ps1",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

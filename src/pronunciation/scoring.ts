@@ -49,6 +49,7 @@ export interface MappedSentenceToken extends SentenceToken {
 }
 
 export interface MappedPronunciationAssessment {
+  spokenText?: string;
   tokens: MappedSentenceToken[];
   extraWords: EngineAlignmentEntry[];
   unmatchedResults: EngineAlignmentEntry[];
@@ -303,11 +304,11 @@ function assessmentKind(entry: EngineAlignmentEntry): WordAssessmentKind {
 }
 
 export function mapPronunciationMarkdown(
-  referenceText: string,
+  referenceText: string | undefined,
   markdown: string,
 ): MappedPronunciationAssessment {
   const root = parseMarkdown(markdown);
-  const tokens: MappedSentenceToken[] = tokenizeSentence(referenceText);
+  const tokens: MappedSentenceToken[] = tokenizeSentence(referenceText ?? '');
   const referenceTokens = tokens.filter(
     (token): token is MappedSentenceToken & { normalized: string } =>
       token.kind === 'word' && token.normalized !== undefined,
@@ -371,6 +372,7 @@ export function mapPronunciationMarkdown(
     referenceTokens.some((token) => token.assessment?.kind === 'uncertain');
 
   return {
+    spokenText: parseSpokenText(root),
     tokens,
     extraWords,
     unmatchedResults,

@@ -5,10 +5,12 @@ const { Text } = Typography;
 
 interface AssessmentResultsProps {
   assessment?: MappedPronunciationAssessment;
+  showTranscript?: boolean;
 }
 
 export default function AssessmentResults({
   assessment,
+  showTranscript = false,
 }: AssessmentResultsProps) {
   if (!assessment) return null;
 
@@ -19,6 +21,13 @@ export default function AssessmentResults({
 
   return (
     <>
+      {showTranscript && assessment.spokenText ? (
+        <Flex vertical gap="small">
+          <Text strong>You said</Text>
+          <Text>{assessment.spokenText}</Text>
+        </Flex>
+      ) : null}
+
       {extraWords ? (
         <Text type="warning">Extra words: {extraWords}</Text>
       ) : null}

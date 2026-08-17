@@ -25,7 +25,7 @@ class PronunciationEngine(Protocol):
     async def stop(self) -> None: ...
 
     async def assess(
-        self, audio_path: Path, reference_text: str
+        self, audio_path: Path, reference_text: str | None
     ) -> CallToolResult: ...
 
 
@@ -82,12 +82,15 @@ def create_app(
     async def assess(
         request: Request,
         audio: UploadFile = File(...),
-        reference_text: str = Form(..., alias="referenceText"),
+        reference_text: str | None = Form(None, alias="referenceText"),
         client: str | None = Header(None, alias="X-Pronunciation-Client"),
     ) -> dict[str, Any]:
         if client != CLIENT_HEADER:
             raise HTTPException(status_code=403, detail="Invalid pronunciation client.")
-        if not reference_text.strip() or len(reference_text) > MAX_REFERENCE_CHARACTERS:
+        if reference_text is not None and (
+            not reference_text.strip()
+            or len(reference_text) > MAX_REFERENCE_CHARACTERS
+        ):
             raise HTTPException(
                 status_code=422,
                 detail=f"referenceText must contain 1 to {MAX_REFERENCE_CHARACTERS} characters.",

@@ -4,6 +4,7 @@ import {
 } from './pronunciation/types';
 
 const PRACTICE_SELECTION_MENU_ID = 'practice-selection';
+const PRACTICE_FREE_SPEECH_MENU_ID = 'practice-free-speech';
 const PRONUNCIATION_ENDPOINT =
   'http://127.0.0.1:8765/api/pronunciation/assess';
 
@@ -16,11 +17,11 @@ function base64ToBlob(value: string, type: string) {
 
 async function assessPronunciation(
   wavBase64: string,
-  referenceText: string,
+  referenceText?: string,
 ): Promise<PronunciationAssessmentResponse> {
   const body = new FormData();
   body.append('audio', base64ToBlob(wavBase64, 'audio/wav'), 'recording.wav');
-  body.append('referenceText', referenceText);
+  if (referenceText) body.append('referenceText', referenceText);
 
   try {
     const response = await fetch(PRONUNCIATION_ENDPOINT, {
@@ -52,26 +53,32 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'Practice selected text',
     contexts: ['selection'],
   });
+  chrome.contextMenus.create({
+    id: PRACTICE_FREE_SPEECH_MENU_ID,
+    title: 'Score recorded speech',
+    contexts: ['page'],
+  });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (
-    info.menuItemId !== PRACTICE_SELECTION_MENU_ID ||
-    !info.selectionText ||
-    typeof tab?.id !== 'number'
-  ) {
+  if (typeof tab?.id !== 'number') {
     return;
   }
+
+  const message =
+    info.menuItemId === PRACTICE_SELECTION_MENU_ID && info.selectionText
+      ? { type: 'PRACTICE_SELECTION' as const, text: info.selectionText }
+      : info.menuItemId === PRACTICE_FREE_SPEECH_MENU_ID
+        ? { type: 'PRACTICE_FREE_SPEECH' as const }
+        : undefined;
+  if (!message) return;
 
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     files: ['content.js'],
   });
 
-  await chrome.tabs.sendMessage(tab.id, {
-    type: 'PRACTICE_SELECTION',
-    text: info.selectionText,
-  });
+  await chrome.tabs.sendMessage(tab.id, message);
 });
 
 chrome.runtime.onMessage.addListener(

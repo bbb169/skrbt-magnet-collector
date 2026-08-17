@@ -14,7 +14,7 @@ import type { PronunciationAssessmentResponse } from './types';
 const { Paragraph, Text } = Typography;
 
 interface PronunciationRecorderProps {
-  selectedText: string;
+  referenceText?: string;
   onAssessmentChange: (
     assessment: MappedPronunciationAssessment | undefined,
   ) => void;
@@ -22,7 +22,7 @@ interface PronunciationRecorderProps {
 }
 
 export default function PronunciationRecorder({
-  selectedText,
+  referenceText,
   onAssessmentChange,
   onStopReferencePlayback,
 }: PronunciationRecorderProps) {
@@ -42,7 +42,7 @@ export default function PronunciationRecorder({
   useEffect(() => {
     releaseRecorderStream();
     setAssessmentState('idle');
-  }, [selectedText]);
+  }, [referenceText]);
 
   useEffect(
     () => () => {
@@ -64,7 +64,7 @@ export default function PronunciationRecorder({
         >({
           type: 'ASSESS_PRONUNCIATION',
           wavBase64,
-          referenceText: selectedText,
+          referenceText,
         });
       if (!response.ok) throw new Error(response.error);
 
@@ -75,7 +75,7 @@ export default function PronunciationRecorder({
         );
       }
 
-      onAssessmentChange(mapPronunciationMarkdown(selectedText, markdown));
+      onAssessmentChange(mapPronunciationMarkdown(referenceText, markdown));
       setAssessmentState('complete');
       void message.success('Assessment complete.');
     } catch (error) {
@@ -197,7 +197,9 @@ export default function PronunciationRecorder({
           }
         />
         <Paragraph type="secondary">
-          Record the sentence to receive clarity and pronunciation feedback.
+          {referenceText
+            ? 'Record the sentence to receive clarity and pronunciation feedback.'
+            : 'Record your voice to receive a transcript, clarity, speed, and prosody feedback.'}
         </Paragraph>
       </Flex>
     </Flex>
